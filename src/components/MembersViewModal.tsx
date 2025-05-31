@@ -16,15 +16,34 @@ export default function MembersViewModal({
   onAddNew, 
   onClose 
 }: MembersViewModalProps) {
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 backdrop-blur-md backdrop-brightness-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-gray-800/90 backdrop-blur-sm rounded-xl p-8 w-full max-w-2xl border border-gray-700/50 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">👥</span>
+    <div 
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      onClick={handleBackdropClick}
+    >
+      <div className="bg-gray-800 rounded-xl p-8 w-full max-w-2xl border border-gray-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+              <span className="text-xl">👥</span>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-100">Household Members</h2>
+              <p className="text-gray-400">Manage your household members</p>
+            </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-100">Household Members</h2>
-          <p className="text-gray-400 mt-2">Manage your household members</p>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-200 text-2xl"
+          >
+            ×
+          </button>
         </div>
 
         <div className="space-y-3 max-h-64 overflow-y-auto mb-6">

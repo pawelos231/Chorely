@@ -1,226 +1,307 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Task, Member } from '@/types';
-import { defaultMembers } from '@/data/defaultMembers';
+import { Task, Household } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { defaultUsers } from '@/data/defaultUsers';
+import { defaultHouseholds } from '@/data/defaultHouseholds';
+import LoginForm from '@/components/LoginForm';
+import RegisterForm from '@/components/RegisterForm';
 import TaskCard from '@/components/TaskCard';
 import TaskModal from '@/components/TaskModal';
-import MemberModal from '@/components/MemberModal';
-import MembersViewModal from '@/components/MembersViewModal';
+import HouseholdCard from '@/components/HouseholdCard';
 import Link from 'next/link';
 
 export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [members, setMembers] = useState<Member[]>(defaultMembers);
+  const { user, logout, isLoading } = useAuth();
+  const [showLogin, setShowLogin] = useState(true);
+  const [households, setHouseholds] = useState<Household[]>([]);
   const [showAddTask, setShowAddTask] = useState(false);
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [showMembersView, setShowMembersView] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [selectedMember, setSelectedMember] = useState<string>('all');
+  const [selectedHousehold, setSelectedHousehold] = useState<string>('all');
 
-  // Load data from localStorage on component mount
+  // Initialize default data
   useEffect(() => {
-    const savedTasks = localStorage.getItem('chorely-tasks');
-    const savedMembers = localStorage.getItem('chorely-members');
-    
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks));
+    // Initialize users if not exists
+    const savedUsers = localStorage.getItem('chorely-users');
+    if (!savedUsers) {
+      localStorage.setItem('chorely-users', JSON.stringify(defaultUsers));
     }
-    if (savedMembers) {
-      setMembers(JSON.parse(savedMembers));
+
+    // Initialize households if not exists
+    const savedHouseholds = localStorage.getItem('chorely-households');
+    if (savedHouseholds) {
+      setHouseholds(JSON.parse(savedHouseholds));
+    } else {
+      setHouseholds(defaultHouseholds);
+      localStorage.setItem('chorely-households', JSON.stringify(defaultHouseholds));
     }
   }, []);
 
-  // Save to localStorage whenever tasks or members change
+  // Save households when they change
   useEffect(() => {
-    localStorage.setItem('chorely-tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    if (households.length > 0) {
+      localStorage.setItem('chorely-households', JSON.stringify(households));
+    }
+  }, [households]);
 
-  useEffect(() => {
-    localStorage.setItem('chorely-members', JSON.stringify(members));
-  }, [members]);
+  // Get user's households and tasks
+  const userHouseholds = user ? households.filter(h => user.households.includes(h.id)) : [];
+  const allUserTasks = userHouseholds.flatMap(h => h.tasks.map(task => ({ ...task, householdId: h.id, householdName: h.name })));
+  const allUserMembers = userHouseholds.flatMap(h => h.members);
+
+  const filteredTasks = allUserTasks.filter(task => {
+    const statusFilter = filter === 'all' || 
+                        (filter === 'pending' && !task.completed) || 
+                        (filter === 'completed' && task.completed);
+    const memberFilter = selectedMember === 'all' || task.assignedTo === selectedMember;
+    const householdFilter = selectedHousehold === 'all' || task.householdId === selectedHousehold;
+    return statusFilter && memberFilter && householdFilter;
+  });
 
   const addTask = (taskData: Omit<Task, 'id' | 'completed' | 'createdAt'>) => {
+    if (!user || userHouseholds.length === 0) return;
+
+    const targetHouseholdId = selectedHousehold !== 'all' ? selectedHousehold : userHouseholds[0].id;
     const newTask: Task = {
       ...taskData,
       id: Date.now().toString(),
       completed: false,
       createdAt: new Date().toISOString(),
     };
-    setTasks([...tasks, newTask]);
+
+    const updatedHouseholds = households.map(h => 
+      h.id === targetHouseholdId 
+        ? { ...h, tasks: [...h.tasks, newTask] }
+        : h
+    );
+
+    setHouseholds(updatedHouseholds);
     setShowAddTask(false);
   };
 
   const toggleTask = (taskId: string) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    ));
+    const updatedHouseholds = households.map(h => ({
+      ...h,
+      tasks: h.tasks.map(task => 
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      )
+    }));
+    setHouseholds(updatedHouseholds);
   };
 
   const deleteTask = (taskId: string) => {
-    setTasks(tasks.filter(task => task.id !== taskId));
+    const updatedHouseholds = households.map(h => ({
+      ...h,
+      tasks: h.tasks.filter(task => task.id !== taskId)
+    }));
+    setHouseholds(updatedHouseholds);
   };
 
-  const addMember = (name: string) => {
-    const colors = ['bg-red-500', 'bg-yellow-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500'];
-    const newMember: Member = {
-      id: Date.now().toString(),
-      name,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      joinDate: new Date().toISOString(),
-      role: 'Member',
-    };
-    setMembers([...members, newMember]);
-    setShowAddMember(false);
-  };
+  const getMemberById = (id: string) => allUserMembers.find(m => m.id === id);
 
-  const removeMember = (memberId: string) => {
-    // Don't allow removing if they have assigned tasks
-    const hasAssignedTasks = tasks.some(task => task.assignedTo === memberId);
-    if (hasAssignedTasks) {
-      alert('Cannot remove member with assigned tasks. Please reassign or complete their tasks first.');
-      return;
-    }
-    setMembers(members.filter(member => member.id !== memberId));
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🏠</div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const filteredTasks = tasks.filter(task => {
-    const statusFilter = filter === 'all' || 
-                        (filter === 'pending' && !task.completed) || 
-                        (filter === 'completed' && task.completed);
-    const memberFilter = selectedMember === 'all' || task.assignedTo === selectedMember;
-    return statusFilter && memberFilter;
-  });
+  // Show auth forms for non-logged users
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <Link href="/" className="inline-block">
+              <h1 className="text-4xl font-bold mb-2 hover:text-blue-400 transition-colors cursor-pointer">🏠 Chorely</h1>
+            </Link>
+            <p className="text-gray-400">Household Task Organization for Roommates & Family</p>
+          </div>
 
-  const getMemberById = (id: string) => members.find(m => m.id === id);
+          {/* Auth Forms */}
+          {showLogin ? (
+            <LoginForm onSwitchToRegister={() => setShowLogin(false)} />
+          ) : (
+            <RegisterForm onSwitchToLogin={() => setShowLogin(true)} />
+          )}
+        </div>
+      </div>
+    );
+  }
 
+  // User Dashboard
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-center mb-2">🏠 Chorely</h1>
-          <p className="text-gray-400 text-center">Household Task Organization for Roommates & Family</p>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-2xl font-bold text-blue-400">{tasks.length}</div>
-            <div className="text-gray-400">Total Tasks</div>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-2xl font-bold text-yellow-400">{tasks.filter(t => !t.completed).length}</div>
-            <div className="text-gray-400">Pending</div>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-2xl font-bold text-green-400">{tasks.filter(t => t.completed).length}</div>
-            <div className="text-gray-400">Completed</div>
-          </div>
-          <button
-            onClick={() => setShowMembersView(true)}
-            className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer"
-          >
-            <div className="text-2xl font-bold text-purple-400">{members.length}</div>
-            <div className="text-gray-400">Members</div>
-          </button>
-          <Link
-            href="/house"
-            className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer block"
-          >
-            <div className="text-2xl font-bold text-orange-400">🏠</div>
-            <div className="text-gray-400">3D House</div>
-          </Link>
-        </div>
-
-        {/* Controls */}
-        <div className="flex flex-wrap gap-4 mb-6 items-center justify-between">
-          <div className="flex flex-wrap gap-4">
-            <button
-              onClick={() => setShowAddTask(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              + Add Task
-            </button>
-            <button
-              onClick={() => setShowAddMember(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              + Add Member
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-4">
-            {/* Filter by status */}
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value as 'all' | 'pending' | 'completed')}
-              className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-100"
-            >
-              <option value="all">All Tasks</option>
-              <option value="pending">Pending</option>
-              <option value="completed">Completed</option>
-            </select>
-
-            {/* Filter by member */}
-            <select
-              value={selectedMember}
-              onChange={(e) => setSelectedMember(e.target.value)}
-              className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-100"
-            >
-              <option value="all">All Members</option>
-              {members.map(member => (
-                <option key={member.id} value={member.id}>{member.name}</option>
-              ))}
-            </select>
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <Link href="/" className="inline-block">
+                <h1 className="text-4xl font-bold hover:text-blue-400 transition-colors cursor-pointer">🏠 Chorely</h1>
+              </Link>
+              <p className="text-gray-400">Welcome back, {user.name}!</p>
+            </div>
+            <div className="flex gap-4">
+              {user.role === 'admin' && (
+                <Link
+                  href="/admin"
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Admin Panel
+                </Link>
+              )}
+              <Link
+                href="/profile"
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                My Profile
+              </Link>
+              <button
+                onClick={logout}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Tasks Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-          {filteredTasks.map(task => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              member={getMemberById(task.assignedTo)}
-              onToggle={toggleTask}
-              onDelete={deleteTask}
-            />
-          ))}
-        </div>
-
-        {filteredTasks.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            <div className="text-6xl mb-4">📝</div>
-            <p>No tasks found. Add some tasks to get started!</p>
+        {userHouseholds.length === 0 ? (
+          // No households message
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🏠</div>
+            <h2 className="text-2xl font-bold mb-2">No Households</h2>
+            <p className="text-gray-400 mb-4">You&apos;re not a member of any households yet.</p>
+            <p className="text-gray-500 text-sm">Contact an administrator to be added to a household.</p>
           </div>
+        ) : (
+          <>
+            {/* User Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="text-2xl font-bold text-blue-400">{allUserTasks.length}</div>
+                <div className="text-gray-400">Total Tasks</div>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="text-2xl font-bold text-yellow-400">{allUserTasks.filter(t => !t.completed).length}</div>
+                <div className="text-gray-400">Pending</div>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="text-2xl font-bold text-green-400">{allUserTasks.filter(t => t.completed).length}</div>
+                <div className="text-gray-400">Completed</div>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="text-2xl font-bold text-purple-400">{userHouseholds.length}</div>
+                <div className="text-gray-400">Households</div>
+              </div>
+            </div>
+
+            {/* My Households */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-4">My Households</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {userHouseholds.map(household => (
+                  <HouseholdCard
+                    key={household.id}
+                    household={household}
+                    showDelete={false}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Task Controls */}
+            <div className="flex flex-wrap gap-4 mb-6 items-center justify-between">
+              <div className="flex flex-wrap gap-4">
+                <button
+                  onClick={() => setShowAddTask(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  + Add Task
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                {/* Filter by status */}
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value as 'all' | 'pending' | 'completed')}
+                  className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-100"
+                >
+                  <option value="all">All Tasks</option>
+                  <option value="pending">Pending</option>
+                  <option value="completed">Completed</option>
+                </select>
+
+                {/* Filter by household */}
+                <select
+                  value={selectedHousehold}
+                  onChange={(e) => setSelectedHousehold(e.target.value)}
+                  className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-100"
+                >
+                  <option value="all">All Households</option>
+                  {userHouseholds.map(household => (
+                    <option key={household.id} value={household.id}>{household.name}</option>
+                  ))}
+                </select>
+
+                {/* Filter by member */}
+                <select
+                  value={selectedMember}
+                  onChange={(e) => setSelectedMember(e.target.value)}
+                  className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-100"
+                >
+                  <option value="all">All Members</option>
+                  {allUserMembers.map(member => (
+                    <option key={member.id} value={member.id}>{member.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Tasks Grid */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-4">My Tasks</h2>
+              {filteredTasks.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredTasks.map(task => (
+                    <div key={task.id} className="relative">
+                      <TaskCard
+                        task={task}
+                        member={getMemberById(task.assignedTo)}
+                        onToggle={toggleTask}
+                        onDelete={deleteTask}
+                      />
+                      <div className="absolute top-2 right-2 bg-gray-700 text-xs px-2 py-1 rounded">
+                        {task.householdName}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="text-6xl mb-4">📝</div>
+                  <p>No tasks found. Add some tasks to get started!</p>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Modals */}
-        {showAddTask && (
+        {showAddTask && userHouseholds.length > 0 && (
           <TaskModal
-            members={members}
+            members={allUserMembers}
             onAdd={addTask}
             onClose={() => setShowAddTask(false)}
-          />
-        )}
-
-        {showAddMember && (
-          <MemberModal
-            onAdd={addMember}
-            onClose={() => setShowAddMember(false)}
-          />
-        )}
-
-        {showMembersView && (
-          <MembersViewModal
-            members={members}
-            onRemove={removeMember}
-            onAddNew={() => {
-              setShowMembersView(false);
-              setShowAddMember(true);
-            }}
-            onClose={() => setShowMembersView(false)}
           />
         )}
       </div>

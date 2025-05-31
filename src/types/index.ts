@@ -21,4 +21,51 @@ export interface Member {
   phone?: string;
   joinDate?: string;
   bio?: string;
+}
+
+export interface Household {
+  id: string;
+  name: string;
+  numberOfRooms: number;
+  houseSize: number; // in square meters
+  numberOfFloors: number;
+  address?: string;
+  houseType?: 'apartment' | 'house' | 'studio' | 'villa' | 'other';
+  hasGarden?: boolean;
+  hasGarage?: boolean;
+  hasBasement?: boolean;
+  hasAttic?: boolean;
+  description?: string;
+  createdAt: string;
+  members: Member[];
+  tasks: Task[];
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  createdAt: string;
+  role: 'admin' | 'user';
+  households: string[]; // Array of household IDs user has access to
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user';
+  households: string[];
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
 } 

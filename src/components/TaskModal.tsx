@@ -27,10 +27,28 @@ export default function TaskModal({ members, onAdd, onClose }: TaskModalProps) {
     }
   };
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 backdrop-blur-md backdrop-brightness-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-gray-800/90 backdrop-blur-sm rounded-lg p-6 w-full max-w-md border border-gray-700/50 shadow-2xl">
-        <h2 className="text-xl font-bold mb-4">Add New Task</h2>
+    <div 
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      onClick={handleBackdropClick}
+    >
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700 shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-100">Add New Task</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-200 text-2xl"
+          >
+            ×
+          </button>
+        </div>
+        
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="text"
