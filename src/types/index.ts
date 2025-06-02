@@ -45,10 +45,10 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  passwordHash: string;
-  createdAt: string;
+  password_hash: string;
   role: 'admin' | 'user';
   households: string[]; // Array of household IDs user has access to
+  created_at: string;
 }
 
 export interface AuthUser {
@@ -68,4 +68,21 @@ export interface RegisterData {
   name: string;
   email: string;
   password: string;
+}
+
+export interface TaskHistory {
+  id: string;
+  task_id: string;
+  changed_by: string;
+  old_status: string;
+  new_status: string;
+  changed_at: string;
+}
+
+export interface Comment {
+  id: string;
+  task_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
 } 

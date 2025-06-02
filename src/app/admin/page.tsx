@@ -5,13 +5,16 @@ import { Household } from '@/types';
 import HouseholdModal from '@/components/HouseholdModal';
 import HouseholdCard from '@/components/HouseholdCard';
 import UserManagementModal from '@/components/UserManagementModal';
+import TaskHistoryModal from '@/components/TaskHistoryModal';
 import { defaultHouseholds } from '@/data/defaultHouseholds';
+import { defaultComments } from '@/data/defaultComments';
 import Link from 'next/link';
 
 export default function AdminPage() {
   const [households, setHouseholds] = useState<Household[]>([]);
   const [showAddHousehold, setShowAddHousehold] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showTaskHistory, setShowTaskHistory] = useState(false);
   const [selectedHousehold, setSelectedHousehold] = useState<Household | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'createdAt' | 'size' | 'members'>('name');
@@ -39,6 +42,13 @@ export default function AdminPage() {
       setHouseholds(defaultHouseholds);
       localStorage.setItem('chorely-households', JSON.stringify(defaultHouseholds));
     }
+
+    // Initialize comments if not exists
+    const savedComments = localStorage.getItem('chorely-comments');
+    if (!savedComments) {
+      localStorage.setItem('chorely-comments', JSON.stringify(defaultComments));
+    }
+
     setIsLoaded(true);
   }, []);
 
@@ -164,6 +174,13 @@ export default function AdminPage() {
               <span className="text-xl">🏠</span>
               Add Household
             </button>
+            <button
+              onClick={() => setShowTaskHistory(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <span>📊</span>
+              View All Task History
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-4 items-center">
@@ -234,10 +251,13 @@ export default function AdminPage() {
             <h3 className="text-lg font-bold text-gray-100 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-gray-700/50 rounded-lg p-4">
-                <h4 className="font-bold text-gray-100 mb-2">📊 Analytics</h4>
-                <p className="text-gray-400 text-sm mb-3">View detailed analytics across all households</p>
-                <button className="text-blue-400 hover:text-blue-300 text-sm font-medium">
-                  View Analytics →
+                <h4 className="font-bold text-gray-100 mb-2">📊 Task History</h4>
+                <p className="text-gray-400 text-sm mb-3">View complete task history across all households</p>
+                <button 
+                  onClick={() => setShowTaskHistory(true)}
+                  className="text-blue-400 hover:text-blue-300 text-sm font-medium"
+                >
+                  View History →
                 </button>
               </div>
               <div className="bg-gray-700/50 rounded-lg p-4">
@@ -274,6 +294,12 @@ export default function AdminPage() {
               setSelectedHousehold(null);
             }}
             onUpdate={handleUpdateHousehold}
+          />
+        )}
+
+        {showTaskHistory && (
+          <TaskHistoryModal
+            onClose={() => setShowTaskHistory(false)}
           />
         )}
       </div>

@@ -3,8 +3,12 @@
 import { useState, useEffect, use } from 'react';
 import { Task, Member, Household } from '@/types';
 import { defaultHouseholds } from '@/data/defaultHouseholds';
+import { defaultComments } from '@/data/defaultComments';
+import { addTaskHistoryEntry } from '@/utils/taskHistory';
+import { useAuth } from '@/contexts/AuthContext';
 import TaskCard from '@/components/TaskCard';
 import TaskModal from '@/components/TaskModal';
+import TaskHistoryModal from '@/components/TaskHistoryModal';
 import MemberModal from '@/components/MemberModal';
 import MembersViewModal from '@/components/MembersViewModal';
 import Link from 'next/link';
@@ -17,11 +21,13 @@ interface HouseholdPageProps {
 
 export default function HouseholdPage({ params }: HouseholdPageProps) {
   const resolvedParams = use(params);
+  const { user } = useAuth();
   const [households, setHouseholds] = useState<Household[]>([]);
   const [currentHousehold, setCurrentHousehold] = useState<Household | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showMembersView, setShowMembersView] = useState(false);
+  const [showTaskHistory, setShowTaskHistory] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [selectedMember, setSelectedMember] = useState<string>('all');
   const [isLoaded, setIsLoaded] = useState(false);
@@ -46,6 +52,13 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
       console.log('Household: No saved households found, using defaults');
       setHouseholds(defaultHouseholds);
     }
+
+    // Initialize comments if not exists
+    const savedComments = localStorage.getItem('chorely-comments');
+    if (!savedComments) {
+      localStorage.setItem('chorely-comments', JSON.stringify(defaultComments));
+    }
+
     setIsLoaded(true);
   }, []);
 
@@ -95,10 +108,27 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
 
     updateCurrentHousehold(updatedHousehold);
     setShowAddTask(false);
+
+    // Track task creation in history
+    if (user) {
+      addTaskHistoryEntry(
+        newTask.id,
+        user.id,
+        'created',
+        'false'
+      );
+    }
   };
 
   const toggleTask = (taskId: string) => {
-    if (!currentHousehold) return;
+    if (!currentHousehold || !user) return;
+
+    // Find the current task to get its current status
+    const currentTask = currentHousehold.tasks.find(t => t.id === taskId);
+    if (!currentTask) return;
+
+    const oldStatus = currentTask.completed.toString();
+    const newStatus = (!currentTask.completed).toString();
 
     const updatedTasks = currentHousehold.tasks.map(task => 
       task.id === taskId ? { ...task, completed: !task.completed } : task
@@ -110,10 +140,16 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
     };
 
     updateCurrentHousehold(updatedHousehold);
+
+    // Track status change in history
+    addTaskHistoryEntry(taskId, user.id, oldStatus, newStatus);
   };
 
   const deleteTask = (taskId: string) => {
-    if (!currentHousehold) return;
+    if (!currentHousehold || !user) return;
+
+    // Find the current task to get its current status
+    const currentTask = currentHousehold.tasks.find(t => t.id === taskId);
 
     const updatedTasks = currentHousehold.tasks.filter(task => task.id !== taskId);
 
@@ -123,6 +159,16 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
     };
 
     updateCurrentHousehold(updatedHousehold);
+
+    // Track task deletion in history
+    if (currentTask) {
+      addTaskHistoryEntry(
+        taskId,
+        user.id,
+        currentTask.completed.toString(),
+        'deleted'
+      );
+    }
   };
 
   const addMember = (memberData: Omit<Member, 'id'>) => {
@@ -348,6 +394,12 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
             >
               + Add Member
             </button>
+            <button
+              onClick={() => setShowTaskHistory(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              📊 Task History
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-4">
@@ -422,6 +474,13 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
               setShowAddMember(true);
             }}
             onClose={() => setShowMembersView(false)}
+          />
+        )}
+
+        {showTaskHistory && (
+          <TaskHistoryModal
+            onClose={() => setShowTaskHistory(false)}
+            householdId={currentHousehold.id}
           />
         )}
       </div>

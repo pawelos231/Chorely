@@ -5,10 +5,14 @@ import { Task, Household } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { defaultUsers } from '@/data/defaultUsers';
 import { defaultHouseholds } from '@/data/defaultHouseholds';
+import { defaultTaskHistory } from '@/data/defaultTaskHistory';
+import { defaultComments } from '@/data/defaultComments';
+import { addTaskHistoryEntry } from '@/utils/taskHistory';
 import LoginForm from '@/components/LoginForm';
 import RegisterForm from '@/components/RegisterForm';
 import TaskCard from '@/components/TaskCard';
 import TaskModal from '@/components/TaskModal';
+import TaskHistoryModal from '@/components/TaskHistoryModal';
 import HouseholdCard from '@/components/HouseholdCard';
 import Link from 'next/link';
 
@@ -17,6 +21,7 @@ export default function Home() {
   const [showLogin, setShowLogin] = useState(true);
   const [households, setHouseholds] = useState<Household[]>([]);
   const [showAddTask, setShowAddTask] = useState(false);
+  const [showTaskHistory, setShowTaskHistory] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [selectedMember, setSelectedMember] = useState<string>('all');
   const [selectedHousehold, setSelectedHousehold] = useState<string>('all');
@@ -36,6 +41,18 @@ export default function Home() {
     } else {
       setHouseholds(defaultHouseholds);
       localStorage.setItem('chorely-households', JSON.stringify(defaultHouseholds));
+    }
+
+    // Initialize task history if not exists
+    const savedTaskHistory = localStorage.getItem('chorely-task-history');
+    if (!savedTaskHistory) {
+      localStorage.setItem('chorely-task-history', JSON.stringify(defaultTaskHistory));
+    }
+
+    // Initialize comments if not exists
+    const savedComments = localStorage.getItem('chorely-comments');
+    if (!savedComments) {
+      localStorage.setItem('chorely-comments', JSON.stringify(defaultComments));
     }
   }, []);
 
@@ -79,9 +96,28 @@ export default function Home() {
 
     setHouseholds(updatedHouseholds);
     setShowAddTask(false);
+
+    // Track task creation in history
+    if (user) {
+      addTaskHistoryEntry(
+        newTask.id,
+        user.id,
+        'created',
+        'false'
+      );
+    }
   };
 
   const toggleTask = (taskId: string) => {
+    if (!user) return;
+
+    // Find the current task to get its current status
+    const currentTask = allUserTasks.find(t => t.id === taskId);
+    if (!currentTask) return;
+
+    const oldStatus = currentTask.completed.toString();
+    const newStatus = (!currentTask.completed).toString();
+
     const updatedHouseholds = households.map(h => ({
       ...h,
       tasks: h.tasks.map(task => 
@@ -89,14 +125,32 @@ export default function Home() {
       )
     }));
     setHouseholds(updatedHouseholds);
+
+    // Track status change in history
+    addTaskHistoryEntry(taskId, user.id, oldStatus, newStatus);
   };
 
   const deleteTask = (taskId: string) => {
+    if (!user) return;
+
+    // Find the current task to get its current status
+    const currentTask = allUserTasks.find(t => t.id === taskId);
+    
     const updatedHouseholds = households.map(h => ({
       ...h,
       tasks: h.tasks.filter(task => task.id !== taskId)
     }));
     setHouseholds(updatedHouseholds);
+
+    // Track task deletion in history
+    if (currentTask) {
+      addTaskHistoryEntry(
+        taskId,
+        user.id,
+        currentTask.completed.toString(),
+        'deleted'
+      );
+    }
   };
 
   const getMemberById = (id: string) => allUserMembers.find(m => m.id === id);
@@ -227,6 +281,12 @@ export default function Home() {
                 >
                   + Add Task
                 </button>
+                <button
+                  onClick={() => setShowTaskHistory(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  📊 Task History
+                </button>
               </div>
 
               <div className="flex flex-wrap gap-4">
@@ -302,6 +362,13 @@ export default function Home() {
             members={allUserMembers}
             onAdd={addTask}
             onClose={() => setShowAddTask(false)}
+          />
+        )}
+
+        {showTaskHistory && (
+          <TaskHistoryModal
+            onClose={() => setShowTaskHistory(false)}
+            householdId={selectedHousehold !== 'all' ? selectedHousehold : undefined}
           />
         )}
       </div>

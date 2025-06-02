@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Check password (simple hash comparison)
       const hashedPassword = simpleHash(credentials.password);
-      if (foundUser.passwordHash !== hashedPassword) {
+      if (foundUser.password_hash !== hashedPassword) {
         return false;
       }
 
@@ -96,8 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: Date.now().toString(),
         name: data.name,
         email: data.email,
-        passwordHash: simpleHash(data.password),
-        createdAt: new Date().toISOString(),
+        password_hash: simpleHash(data.password),
+        created_at: new Date().toISOString(),
         role: 'user',
         households: [], // New users start with no households
       };
