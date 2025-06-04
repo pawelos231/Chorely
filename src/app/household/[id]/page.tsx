@@ -12,6 +12,7 @@ import TaskHistoryModal from '@/components/TaskHistoryModal';
 import MemberModal from '@/components/MemberModal';
 import MembersViewModal from '@/components/MembersViewModal';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 interface HouseholdPageProps {
   params: Promise<{
@@ -34,23 +35,22 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
 
   // Load households from localStorage on component mount
   useEffect(() => {
-    console.log('Household: Loading households from localStorage...');
     const savedHouseholds = localStorage.getItem('chorely-households');
-    console.log('Household: Raw localStorage data:', savedHouseholds);
     
     if (savedHouseholds) {
       try {
         const parsedHouseholds = JSON.parse(savedHouseholds);
-        console.log('Household: Parsed households:', parsedHouseholds);
         setHouseholds(parsedHouseholds);
-      } catch (error) {
-        console.error('Household: Error parsing households:', error);
+      } catch {
+        toast.error('Failed to load household data');
         setHouseholds(defaultHouseholds);
       }
     } else {
       // No saved data, use defaults
-      console.log('Household: No saved households found, using defaults');
       setHouseholds(defaultHouseholds);
+      toast('Loading default household data', {
+        icon: 'ℹ️',
+      });
     }
 
     // Initialize comments if not exists
@@ -65,21 +65,23 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
   // Find the current household by ID
   useEffect(() => {
     if (isLoaded) {
-      console.log('Household: Looking for household with ID:', resolvedParams.id);
-      console.log('Household: Available households:', households.map(h => ({ id: h.id, name: h.name })));
-      
       const household = households.find(h => h.id === resolvedParams.id);
-      console.log('Household: Found household:', household ? { id: household.id, name: household.name } : null);
-      
       setCurrentHousehold(household || null);
+      
+      if (!household && households.length > 0) {
+        toast.error('Household not found');
+      }
     }
   }, [households, resolvedParams.id, isLoaded]);
 
   // Save to localStorage whenever households change (but only after initial load)
   useEffect(() => {
     if (isLoaded && households.length > 0) {
-      console.log('Household: Saving households to localStorage:', households.length, 'households');
-      localStorage.setItem('chorely-households', JSON.stringify(households));
+      try {
+        localStorage.setItem('chorely-households', JSON.stringify(households));
+      } catch {
+        toast.error('Failed to save household data');
+      }
     }
   }, [households, isLoaded]);
 
@@ -108,6 +110,7 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
 
     updateCurrentHousehold(updatedHousehold);
     setShowAddTask(false);
+    toast.success(`Task "${taskData.title}" has been created!`);
 
     // Track task creation in history
     if (user) {
@@ -141,6 +144,15 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
 
     updateCurrentHousehold(updatedHousehold);
 
+    // Show appropriate toast message
+    if (currentTask.completed) {
+      toast('Task marked as pending', {
+        icon: '🔄',
+      });
+    } else {
+      toast.success('Task completed! 🎉');
+    }
+
     // Track status change in history
     addTaskHistoryEntry(taskId, user.id, oldStatus, newStatus);
   };
@@ -159,9 +171,11 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
     };
 
     updateCurrentHousehold(updatedHousehold);
-
-    // Track task deletion in history
+    
     if (currentTask) {
+      toast.success(`Task "${currentTask.title}" has been deleted`);
+      
+      // Track task deletion in history
       addTaskHistoryEntry(
         taskId,
         user.id,
@@ -173,6 +187,28 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
 
   const addMember = (memberData: Omit<Member, 'id'>) => {
     if (!currentHousehold) return;
+
+    // Check for duplicate names (case insensitive)
+    const duplicateName = currentHousehold.members.some(
+      member => member.name.toLowerCase() === memberData.name.toLowerCase()
+    );
+    
+    if (duplicateName) {
+      toast.error(`A member named "${memberData.name}" already exists in this household`);
+      return;
+    }
+
+    // Check for duplicate emails if email is provided
+    if (memberData.email) {
+      const duplicateEmail = currentHousehold.members.some(
+        member => member.email && member.email.toLowerCase() === memberData.email!.toLowerCase()
+      );
+      
+      if (duplicateEmail) {
+        toast.error(`A member with email "${memberData.email}" already exists in this household`);
+        return;
+      }
+    }
 
     const newMember: Member = {
       ...memberData,
@@ -187,6 +223,21 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
 
     updateCurrentHousehold(updatedHousehold);
     setShowAddMember(false);
+
+    // Also add to global members list for profile access
+    try {
+      const existingMembers = localStorage.getItem('chorely-members');
+      const allMembers: Member[] = existingMembers ? JSON.parse(existingMembers) : [];
+      
+      // Check if this member doesn't already exist in global list
+      const memberExists = allMembers.some(m => m.id === newMember.id);
+      if (!memberExists) {
+        allMembers.push(newMember);
+        localStorage.setItem('chorely-members', JSON.stringify(allMembers));
+      }
+    } catch {
+      toast.error('Failed to sync member data');
+    }
   };
 
   const removeMember = (memberId: string) => {
@@ -195,10 +246,11 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
     // Don't allow removing if they have assigned tasks
     const hasAssignedTasks = currentHousehold.tasks.some(task => task.assignedTo === memberId);
     if (hasAssignedTasks) {
-      alert('Cannot remove member with assigned tasks. Please reassign or complete their tasks first.');
+      toast.error('Cannot remove member with assigned tasks. Please reassign or complete their tasks first');
       return;
     }
 
+    const memberToRemove = currentHousehold.members.find(m => m.id === memberId);
     const updatedMembers = currentHousehold.members.filter(member => member.id !== memberId);
 
     const updatedHousehold = {
@@ -207,6 +259,10 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
     };
 
     updateCurrentHousehold(updatedHousehold);
+    
+    if (memberToRemove) {
+      toast.success(`${memberToRemove.name} has been removed from the household`);
+    }
   };
 
   if (!currentHousehold) {
@@ -214,8 +270,13 @@ export default function HouseholdPage({ params }: HouseholdPageProps) {
       // Force reload from localStorage
       const savedHouseholds = localStorage.getItem('chorely-households');
       if (savedHouseholds) {
-        const parsedHouseholds = JSON.parse(savedHouseholds);
-        setHouseholds(parsedHouseholds);
+        try {
+          const parsedHouseholds = JSON.parse(savedHouseholds);
+          setHouseholds(parsedHouseholds);
+          toast.success('Data refreshed successfully');
+        } catch {
+          toast.error('Failed to refresh data');
+        }
       }
     };
 

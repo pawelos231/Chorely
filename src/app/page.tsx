@@ -64,7 +64,17 @@ export default function Home() {
   }, [households]);
 
   // Get user's households and tasks
-  const userHouseholds = user ? households.filter(h => user.households.includes(h.id)) : [];
+  const userHouseholds = user ? households.filter(household => {
+    // Check if user has access to this household by ID
+    if (user.households.includes(household.id)) {
+      return true;
+    }
+    
+    // Also check if user is a member by email
+    return household.members.some(member => 
+      member.email && member.email.toLowerCase() === user.email.toLowerCase()
+    );
+  }) : [];
   const allUserTasks = userHouseholds.flatMap(h => h.tasks.map(task => ({ ...task, householdId: h.id, householdName: h.name })));
   const allUserMembers = userHouseholds.flatMap(h => h.members);
 

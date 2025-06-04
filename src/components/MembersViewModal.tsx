@@ -22,6 +22,27 @@ export default function MembersViewModal({
     }
   };
 
+  const handleProfileClick = (member: Member) => {
+    // Ensure member data is available in localStorage for the profile page
+    const existingMembers = localStorage.getItem('chorely-members');
+    let allMembers: Member[] = existingMembers ? JSON.parse(existingMembers) : [];
+    
+    // Check if this member already exists in the global members list
+    const memberExists = allMembers.some(m => m.id === member.id);
+    
+    if (!memberExists) {
+      // Add this member to the global members list so the profile page can access it
+      allMembers.push(member);
+      localStorage.setItem('chorely-members', JSON.stringify(allMembers));
+    } else {
+      // Update existing member data in case it changed
+      allMembers = allMembers.map(m => m.id === member.id ? member : m);
+      localStorage.setItem('chorely-members', JSON.stringify(allMembers));
+    }
+    
+    onClose();
+  };
+
   return (
     <div 
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
@@ -58,9 +79,12 @@ export default function MembersViewModal({
                 <Link 
                   href={`/member/${member.id}`}
                   className="flex items-center gap-3 flex-1 text-left hover:opacity-80 transition-opacity"
-                  onClick={onClose}
+                  onClick={() => handleProfileClick(member)}
                 >
-                  <div className={`w-10 h-10 rounded-full ${member.color} flex items-center justify-center text-white font-bold`}>
+                  <div 
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                    style={{ backgroundColor: member.color }}
+                  >
                     {member.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
@@ -71,7 +95,12 @@ export default function MembersViewModal({
                   </div>
                 </Link>
                 <button
-                  onClick={() => onRemove(member.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`Are you sure you want to remove ${member.name} from this household?`)) {
+                      onRemove(member.id);
+                    }
+                  }}
                   className="text-red-400 hover:text-red-300 hover:bg-red-900/20 p-2 rounded-lg transition-all"
                   title="Remove member"
                 >
