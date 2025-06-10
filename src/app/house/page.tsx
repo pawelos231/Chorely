@@ -305,99 +305,101 @@ export default function HouseVisualizationPage() {
   };
 
   useEffect(() => {
-    if (!mountRef.current) return;
+    if (!mountRef.current || typeof window === 'undefined') {
+      return;
+    }
 
-    // Scene setup
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb); // Sky blue background
-    sceneRef.current = scene;
+    const currentMount = mountRef.current;
 
-    // Camera setup
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      mountRef.current.clientWidth / mountRef.current.clientHeight,
-      0.1,
-      1000
-    );
-    camera.position.set(8, 6, 8);
-    camera.lookAt(0, 0, 0);
+    const initThree = () => {
+      // Scene
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+      sceneRef.current = scene;
 
-    // Renderer setup
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    rendererRef.current = renderer;
-    mountRef.current.appendChild(renderer.domElement);
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
-    scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(15, 15, 10);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 4096;
-    directionalLight.shadow.mapSize.height = 4096;
-    directionalLight.shadow.camera.near = 0.1;
-    directionalLight.shadow.camera.far = 50;
-    directionalLight.shadow.camera.left = -20;
-    directionalLight.shadow.camera.right = 20;
-    directionalLight.shadow.camera.top = 20;
-    directionalLight.shadow.camera.bottom = -20;
-    scene.add(directionalLight);
-
-    // Ground plane
-    const groundGeometry = new THREE.PlaneGeometry(40, 40);
-    const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x3cb371 });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    // Generate initial house
-    const initialProps = generateRandomHouse();
-    setHouseProps(initialProps);
-    buildHouse(scene, initialProps);
-
-    // Animation loop
-    const animate = () => {
-      animationIdRef.current = requestAnimationFrame(animate);
-      
-      // Slowly rotate camera around the house
-      const time = Date.now() * 0.0005;
-      camera.position.x = Math.cos(time) * 12;
-      camera.position.z = Math.sin(time) * 12;
+      // Camera
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        currentMount.clientWidth / currentMount.clientHeight,
+        0.1,
+        1000
+      );
+      camera.position.set(5, 5, 10);
       camera.lookAt(0, 0, 0);
 
-      renderer.render(scene, camera);
+      // Renderer
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      rendererRef.current = renderer;
+
+      currentMount.appendChild(renderer.domElement);
+
+      // Lights
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+      directionalLight.position.set(10, 20, 15);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.mapSize.width = 1024;
+      directionalLight.shadow.mapSize.height = 1024;
+      directionalLight.shadow.camera.near = 0.5;
+      directionalLight.shadow.camera.far = 50;
+      scene.add(directionalLight);
+
+      // Ground
+      const groundGeometry = new THREE.PlaneGeometry(40, 40);
+      const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x3cb371 });
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Animation loop
+      const animate = () => {
+        animationIdRef.current = requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      };
+      animate();
+
+      // Resize listener
+      const handleResize = () => {
+        if (currentMount) {
+          camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
+        }
+      };
+      window.addEventListener('resize', handleResize);
+
+      // Initial house build
+      if (houseProps) {
+        buildHouse(scene, houseProps);
+      }
     };
 
-    animate();
+    initThree();
 
-    // Handle window resize
-    const handleResize = () => {
-      if (!mountRef.current) return;
-      
-      camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
     return () => {
-      window.removeEventListener('resize', handleResize);
+      // Cleanup
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current);
       }
-      if (mountRef.current && renderer.domElement) {
-        mountRef.current.removeChild(renderer.domElement);
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
       }
-      renderer.dispose();
+      if (sceneRef.current) {
+        sceneRef.current.clear();
+      }
+      if (currentMount && rendererRef.current) {
+        currentMount.removeChild(rendererRef.current.domElement);
+      }
+      window.removeEventListener('resize', () => {});
     };
-  }, []);
+  }, [houseProps]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
