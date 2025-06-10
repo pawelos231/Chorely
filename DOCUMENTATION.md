@@ -2,11 +2,21 @@
 
 ## 1. Wprowadzenie
 
-Niniejsza dokumentacja opisuje techniczną strukturę i działanie aplikacji Chorely. Przeznaczona jest dla deweloperów oraz osób zainteresowanych wewnętrznym funkcjonowaniem projektu.
+Niniejsza dokumentacja stanowi kompleksowy przewodnik po architekturze, strukturze i wewnętrznym działaniu aplikacji Chorely. Jej celem jest dostarczenie deweloperom i osobom technicznym dogłębnego zrozumienia projektu, od ogólnej koncepcji po szczegóły implementacyjne kluczowych funkcjonalności. Dokument ten ma służyć jako centralne źródło wiedzy o projekcie, ułatwiając wdrożenie nowych członków zespołu, utrzymanie oraz dalszy rozwój aplikacji.
 
-## 2. Struktura Projektu i Moduły
+## 2. Filozofia i Architektura Projektu
 
-Projekt oparty jest o architekturę zorientowaną na moduły, co ułatwia zarządzanie kodem i jego rozwój. Główny kod aplikacji znajduje się w katalogu `src/`.
+Chorely zostało zaprojektowane z myślą o modułowości, skalowalności i łatwości utrzymania. Kluczowe decyzje architektoniczne opierają się na następujących zasadach:
+
+*   **Architektura zorientowana na komponenty**: Interfejs użytkownika jest budowany z małych, niezależnych i reużywalnych komponentów React. Takie podejście upraszcza dewelopment, testowanie i refaktoryzację UI.
+*   **Separacja warstw**: Logika aplikacji jest oddzielona od warstwy prezentacji. Strony w `src/app` pełnią rolę kontrolerów, które pobierają dane i przekazują je do "głupich" komponentów w `src/components`, które są odpowiedzialne wyłącznie za renderowanie.
+*   **Centralizacja typów**: Wszystkie typy danych używane w aplikacji są zdefiniowane w jednym miejscu (`src/types`), co zapewnia spójność i bezpieczeństwo typów w całym projekcie.
+*   **Utility-First CSS**: Wykorzystanie Tailwind CSS pozwala na szybkie prototypowanie i budowanie spójnych interfejsów bez opuszczania kontekstu plików TSX, co znacząco przyspiesza pracę.
+*   **Renderowanie po stronie serwera (SSR) i klienta (CSR)**: Next.js daje elastyczność w wyborze strategii renderowania. Obecnie aplikacja działa głównie po stronie klienta, ale architektura jest gotowa na wykorzystanie SSR/SSG w przyszłości w celu optymalizacji wydajności.
+
+## 3. Struktura Projektu i Szczegółowy Opis Modułów
+
+Główny kod aplikacji znajduje się w katalogu `src/`. Poniżej przedstawiono jego strukturę wraz ze szczegółowym omówieniem przeznaczenia każdego modułu.
 
 ```
 chorely/
@@ -14,164 +24,203 @@ chorely/
 ├── node_modules/    # Zależności projektu
 ├── public/          # Pliki statyczne (fonty, obrazki)
 ├── src/             # Główny kod źródłowy aplikacji
-│   ├── app/         # Główne strony i logika aplikacji (Next.js App Router)
+│   ├── app/         # Strony i logika aplikacji (Next.js App Router)
 │   ├── components/  # Komponenty UI wielokrotnego użytku
-│   ├── contexts/    # Konteksty React (zarządzanie stanem)
+│   ├── contexts/    # Konteksty React (globalne zarządzanie stanem)
 │   ├── data/        # Domyślne/mockowe dane
 │   ├── types/       # Definicje typów TypeScript
-│   └── utils/       # Funkcje pomocnicze i walidacja
+│   └── utils/       # Funkcje pomocnicze i logika biznesowa
 ├── .gitignore       # Pliki ignorowane przez Git
 ├── next.config.ts   # Konfiguracja Next.js
 ├── package.json     # Definicja projektu i zależności
 └── tsconfig.json    # Konfiguracja TypeScript
 ```
 
-### 2.1. Moduły
+### 3.1. `src/app` - Routing i Widoki
 
-*   **`src/app`**: Serce aplikacji. Zawiera routing, poszczególne strony (widoki) oraz ich logikę. Struktura katalogów w `app` bezpośrednio odpowiada za adresy URL w aplikacji. Każda podstrona ma swój własny katalog z plikiem `page.tsx`.
-*   **`src/components`**: Zbiór reużywalnych komponentów React, takich jak modale, karty, formularze. Komponenty te są generyczne i mogą być używane na różnych stronach aplikacji.
-*   **`src/contexts`**: Służy do globalnego zarządzania stanem w aplikacji. Obecnie znajduje się tu `AuthContext`, który przechowuje informacje o zalogowanym użytkowniku i zarządza procesem autentykacji.
-*   **`src/data`**: Zawiera pliki z domyślnymi danymi (mock data). Używane do dewelopmentu i testów, symulując odpowiedzi z prawdziwego backendu.
-*   **`src/types`**: Centralne miejsce dla definicji typów TypeScript. Opisują one struktury danych używane w całej aplikacji, takie jak `User`, `Household`, `Task`, co zapewnia bezpieczeństwo typów i ułatwia dewelopment.
-*   **`src/utils`**: Moduł zawierający funkcje pomocnicze, które nie są bezpośrednio związane z żadnym konkretnym komponentem. Znajduje się tu m.in. logika walidacji (np. przy użyciu Zod) oraz funkcje do obsługi komentarzy i historii zadań.
+Moduł ten jest sercem aplikacji, implementując routing oparty na systemie plików Next.js (App Router). Każdy katalog w `app` odpowiada za konkretny segment URL.
 
-## 3. Użyte Technologie i Biblioteki
+*   `layout.tsx`: Główny layout aplikacji, zawierający strukturę HTML, `body` oraz opakowujący całą aplikację w `AuthProvider`.
+*   `page.tsx`: Główny punkt wejścia, strona powitalna.
+*   `/login`, `/register`: Strony z formularzami logowania i rejestracji.
+*   `/household`: Główny panel użytkownika po zalogowaniu, wyświetlający zadania i członków gospodarstwa domowego.
+*   `/profile`: Strona profilu zalogowanego użytkownika.
+*   `/admin`: Panel administracyjny dla użytkowników z rolą `admin`.
+*   `/member/[id]`: Dynamiczna strona profilu członka gospodarstwa domowego.
+*   `/house`: Strona z unikalną funkcjonalnością wizualizacji domu 3D.
 
-| Technologia/Biblioteka | Wersja    | Uzasadnienie Wyboru                                                                                                |
+### 3.2. `src/components` - Reużywalne Klocki UI
+
+Ten katalog zawiera zbiór komponentów React, które są "czyste" i niezależne od logiki biznesowej. Otrzymują dane i funkcje do wykonania poprzez `props`.
+
+*   **Modale**: `TaskModal`, `MemberModal`, `HouseholdModal`, `TaskCommentsModal`, `TaskHistoryModal`, `UserManagementModal` - Służą do tworzenia, edycji i wyświetlania szczegółowych informacji w oknach modalnych, co utrzymuje czystość głównego interfejsu.
+*   **Karty**: `TaskCard`, `HouseholdCard` - Komponenty do zwięzłego wyświetlania informacji o zadaniach i gospodarstwach domowych, np. w listach.
+*   **Formularze**: `LoginForm`, `RegisterForm` - Dedykowane komponenty do obsługi interakcji z użytkownikiem w procesie autentykacji.
+
+### 3.3. `src/contexts` - Globalne Zarządzanie Stanem
+
+*   `AuthContext.tsx`: Kluczowy element zarządzania stanem sesji użytkownika. Dostarcza `user`, funkcje `login`, `register`, `logout` oraz flagę `isLoading` do wszystkich komponentów w aplikacji za pomocą hooka `useAuth`. W obecnej implementacji stan jest utrwalany w `localStorage`, symulując sesję użytkownika bez backendu.
+
+### 3.4. `src/data` - Mockowe Źródła Danych
+
+W tej chwili aplikacja działa w trybie "backend-less". Ten katalog zawiera dane, które symulują odpowiedzi z API.
+
+*   `defaultUsers.ts`: Lista domyślnych użytkowników z hasłami (dla celów demonstracyjnych).
+*   `defaultHouseholds.ts`: Przykładowe dane gospodarstw domowych.
+*   `defaultMembers.ts`, `defaultComments.ts`, `defaultTaskHistory.ts`: Dane powiązane z gospodarstwami i zadaniami.
+
+### 3.5. `src/types` - Kontrakty Danych
+
+*   `index.ts`: Centralne repozytorium dla wszystkich interfejsów TypeScript. Definiuje kształt kluczowych obiektów, takich jak `User`, `Household`, `Task`, `Member`, co jest fundamentem dla bezpieczeństwa typów i IntelliSense w całym projekcie.
+
+### 3.6. `src/utils` - Logika Biznesowa i Funkcje Pomocnicze
+
+Moduł ten zawiera logikę, która jest reużywalna i odseparowana od warstwy UI. Każdy plik ma jasno zdefiniowaną odpowiedzialność.
+
+*   **`validation.ts`**: Centralny punkt walidacji danych w aplikacji, zbudowany przy użyciu biblioteki Zod. Eksportuje szczegółowe schematy walidacji dla kluczowych operacji (logowanie, rejestracja) oraz modeli danych (`Household`, `Member`, `Task`). Definiuje również typy TypeScript na podstawie tych schematów (np. `TaskFormData`), co zapewnia spójność między walidacją a typowaniem. Zawiera także funkcję pomocniczą `formatZodErrors` do transformacji błędów Zod na obiekt przyjazny dla formularzy.
+*   **`comments.ts`**: Zestaw funkcji CRUD (Create, Read, Update, Delete) do zarządzania komentarzami. Ponieważ aplikacja działa w trybie "backend-less", wszystkie operacje (np. `addComment`, `getCommentsForTask`, `deleteComment`) są wykonywane bezpośrednio na `localStorage`. Funkcje te hermetyzują logikę interakcji z pamięcią przeglądarki, symulując zachowanie prawdziwego API.
+*   **`taskHistory.ts`**: Odpowiada za śledzenie zmian w statusie zadań. Funkcja `addTaskHistoryEntry` jest wywoływana, gdy status zadania ulega zmianie, tworząc wpis w `localStorage`. Funkcja `getTaskHistory` pozwala na pobranie historii dla konkretnego zadania lub całej historii, co jest wykorzystywane w modalu `TaskHistoryModal`.
+
+## 4. Użyte Technologie i Biblioteki
+
+| Technologia/Biblioteka | Wersja    | Uzasadnienie Wyboru i Sposób Użycia                                                                                                |
 | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Next.js**            | `15.3.2`  | Framework React zapewniający renderowanie po stronie serwera (SSR), generowanie statycznych stron (SSG) i routing oparty na plikach (App Router). Idealny dla nowoczesnych, zoptymalizowanych aplikacji webowych. |
-| **React**              | `19.0.0`  | Biblioteka do budowania interfejsów użytkownika. Wybrana ze względu na popularność, duży ekosystem i model oparty na komponentach.                                |
-| **TypeScript**         | `5`       | Nadzbiór JavaScriptu dodający statyczne typowanie. Zwiększa bezpieczeństwo kodu, ułatwia refaktoryzację i poprawia doświadczenia deweloperskie (DX). |
-| **Tailwind CSS**       | `4`       | Framework CSS typu "utility-first", który pozwala na szybkie budowanie interfejsów bezpośrednio w kodzie HTML/JSX. Znacząco przyspiesza development UI.               |
-| **Zod**                | `3.25.51` | Biblioteka do walidacji schematów danych. Używana do walidacji formularzy i danych przychodzących, zapewniając ich poprawność i spójność z typami TypeScript.     |
-| **react-hot-toast**    | `2.5.2`   | Biblioteka do wyświetlania powiadomień (toastów). Prosta w użyciu i konfigurowalna.                               |
-| **Three.js**           | `0.176.0` | Biblioteka do tworzenia i wyświetlania grafiki 3D. Używana na stronie `/house` do dynamicznego generowania i wizualizacji modelu 3D domu na podstawie jego właściwości. |
-| **ESLint**             | `9`       | Narzędzie do statycznej analizy kodu (linting), pomagające utrzymać jego jakość i spójność stylistyczną.             |
+| **Next.js**            | `15.3.2`  | Framework React zapewniający renderowanie po stronie serwera (SSR), generowanie statycznych stron (SSG) i routing oparty na plikach (App Router). Wybrany ze względu na optymalizację SEO, wydajność i doskonałe doświadczenia deweloperskie. App Router jest intensywnie wykorzystywany do strukturyzacji aplikacji. |
+| **React**              | `19.0.0`  | Biblioteka do budowania interfejsów użytkownika. Model oparty na komponentach i hookach (`useState`, `useEffect`, `useContext`) stanowi podstawę całej logiki UI aplikacji.                                |
+| **TypeScript**         | `5`       | Statyczne typowanie jest kluczowe dla utrzymania jakości i skalowalności kodu. Wszystkie dane, propsy i stany są ściśle otypowane, co minimalizuje błędy w czasie działania aplikacji. |
+| **Tailwind CSS**       | `4`       | Framework CSS typu "utility-first", który pozwala na szybkie budowanie interfejsów bezpośrednio w kodzie JSX. Eliminuje potrzebę pisania osobnych plików CSS, co przyspiesza development.               |
+| **Zod**                | `3.25.51` | Biblioteka do walidacji schematów, wykorzystywana w `src/utils/validation.ts`. Służy do walidacji danych wejściowych w formularzach, zapewniając ich zgodność z typami TypeScript przed przetworzeniem.     |
+| **react-hot-toast**    | `2.5.2`   | Biblioteka do wyświetlania prostych, nieinwazyjnych powiadomień (toastów) informujących użytkownika o wynikach operacji (np. "Zalogowano pomyślnie").                               |
+| **Three.js**           | `0.176.0` | Biblioteka do tworzenia grafiki 3D w WebGL. Jest fundamentem dla strony `/house`, gdzie służy do proceduralnego generowania i renderowania interaktywnego modelu 3D domu na podstawie dynamicznych właściwości. |
+| **ESLint**             | `9`       | Narzędzie do statycznej analizy kodu, które dba o spójność stylu kodowania i wyłapuje potencjalne problemy na wczesnym etapie.             |
 
-## 4. Wewnętrzne Działanie Aplikacji
+## 5. Architektura Danych i Przepływ Informacji
 
-### 4.1. Przepływ Danych (Data Flow)
+### 5.1. Model Danych
 
-Aplikacja działa głównie po stronie klienta. Dane przepływają w następujący sposób:
-
-1.  **Inicjalizacja**: Po załadowaniu strony, `AuthContext` sprawdza, czy użytkownik jest zalogowany (np. na podstawie danych w `localStorage`).
-2.  **Pobieranie Danych**: Strony w katalogu `app` (np. `household/page.tsx`) pobierają potrzebne dane. Obecnie dane te pochodzą z mocków w `src/data`, ale w docelowym rozwiązaniu będą to zapytania do API.
-3.  **Przekazywanie Danych**: Dane są przekazywane w dół drzewa komponentów za pomocą propsów (`props drilling`). Z kontenerów (stron) do mniejszych, reużywalnych komponentów w `src/components`.
-4.  **Zarządzanie Stanem**:
-    *   **Stan globalny**: `AuthContext` przechowuje dane zalogowanego użytkownika.
-    *   **Stan lokalny**: Poszczególne komponenty zarządzają swoim stanem lokalnym (np. otwarcie modala, zawartość pól formularza) przy użyciu hooków `useState` i `useReducer`.
-
-### 4.2. Zależności Między Modułami
-
-Poniższy diagram przedstawia uproszczone zależności między modułami:
+Podstawowe byty w systemie to `Household`, `User`, `Member` i `Task`. Relacje między nimi są następujące:
+*   Jeden `User` może należeć do wielu `Household`.
+*   Jeden `Household` ma wielu `Member` (mieszkańców) oraz wiele `Task` (zadań).
+*   Każde `Task` jest przypisane do konkretnego `Member`.
 
 ```mermaid
 graph TD;
-    subgraph "Aplikacja Chorely"
-        A(src/app) -- "Używa" --> B(src/components);
-        A -- "Używa" --> C(src/contexts);
-        A -- "Pobiera dane z" --> D(src/data);
-        B -- "Używa" --> E(src/types);
-        A -- "Używa" --> E;
-        C -- "Używa" --> E;
-        A -- "Używa" --> F(src/utils);
+    subgraph "Model Danych Chorely"
+        User -- "Należy do" --> Household;
+        Household -- "Zawiera" --> Member;
+        Household -- "Ma" --> Task;
+        Task -- "Jest przypisane do" --> Member;
     end
 ```
 
-*   `src/app` jest centralnym punktem, który integruje inne moduły do budowy widoków.
-*   `src/components` są "głupimi" klockami UI, które otrzymują dane i funkcje do wykonania z góry.
-*   `src/contexts` dostarcza globalny stan, z którego mogą korzystać zarówno strony w `app`, jak i komponenty w `components`.
-*   `src/types` jest używane przez wszystkie inne moduły do zapewnienia spójności danych.
-*   `src/utils` dostarcza logiki, która może być reużywana w różnych częściach aplikacji.
+### 5.2. Przepływ Danych (Data Flow)
 
-## 5. Interfejsy i Publiczne API
+Aplikacja wykorzystuje jednokierunkowy przepływ danych, typowy dla React.
 
-Aplikacja w obecnej formie nie wystawia publicznego API. Komunikacja z backendem (gdy zostanie zaimplementowany) będzie się odbywać poprzez prywatne API (REST lub GraphQL), do którego zapytania będą autoryzowane na podstawie tokena (np. JWT) przechowywanego po stronie klienta.
+1.  **Inicjalizacja**: `AuthProvider` w `layout.tsx` przy starcie aplikacji próbuje wczytać dane zalogowanego użytkownika z `localStorage`, ustawiając globalny stan `user`.
+2.  **Pobieranie Danych**: Komponenty-strony (np. `household/page.tsx`) pobierają potrzebne dane. Obecnie pochodzą one z mocków w `src/data`, ale w przyszłości będą to zapytania do API.
+3.  **Przekazywanie Danych (Props Drilling)**: Strony przekazują dane w dół drzewa do komponentów UI (`TaskCard`, `MemberModal`) za pomocą propsów.
+4.  **Aktualizacja Stanu**:
+    *   **Stan globalny**: Interakcje użytkownika (np. logowanie, wylogowanie) wywołują funkcje z `AuthContext`, które modyfikują globalny stan `user`.
+    *   **Stan lokalny**: Komponenty zarządzają swoim wewnętrznym stanem (np. widoczność modala, zawartość pól formularza) za pomocą hooka `useState`.
+    *   **Mutacja danych**: Gdy użytkownik wykonuje akcję (np. dodaje zadanie), komponent wywołuje funkcję (otrzymaną przez propsy), która aktualizuje stan na poziomie nadrzędnej strony. To z kolei powoduje ponowne renderowanie UI z nowymi danymi.
 
-## 6. Przykłady Działania Kluczowych Funkcjonalności
+### 5.3. Korelacja i Kompozycja Komponentów
 
-### 6.1. Logowanie Użytkownika
+Architektura aplikacji silnie opiera się na kompozycji, gdzie złożone widoki są budowane z prostszych, reużywalnych "klocków". Ten wzorzec jest widoczny na wszystkich poziomach aplikacji.
 
-1.  **UI**: Użytkownik wchodzi na stronę logowania (`/login`). Wyświetlany jest komponent `LoginForm` z `src/components/LoginForm.tsx`.
-2.  **Wprowadzanie Danych**: Użytkownik podaje e-mail i hasło. Stan formularza jest zarządzany lokalnie w komponencie.
-3.  **Walidacja**: Po kliknięciu "Zaloguj", dane z formularza są walidowane. W przyszłości będzie tu użyta biblioteka `Zod` (logika w `src/utils/validation.ts`).
-4.  **Autentykacja**:
-    *   Komponent wywołuje funkcję `login` z `AuthContext`.
-    *   Funkcja `login` (w `src/contexts/AuthContext.tsx`) wysyła zapytanie do API w celu weryfikacji danych. *Obecnie symulowane jest to przez porównanie z danymi w `src/data/defaultUsers.ts`.*
-    *   W przypadku sukcesu, dane użytkownika są zapisywane w stanie `AuthContext` oraz w `localStorage`.
-5.  **Przekierowanie**: Użytkownik jest przekierowywany na stronę główną lub do swojego panelu (`/household`).
+*   **Strona jako Kontener**: Strony w katalogu `src/app` (np. `app/household/page.tsx`) działają jak inteligentne komponenty-kontenery. Ich głównym zadaniem jest pobranie danych (obecnie z `src/data` lub `localStorage`), zarządzanie stanem na poziomie widoku (np. który modal jest otwarty) i przekazywanie danych oraz funkcji obsługi zdarzeń do komponentów podrzędnych.
+*   **Komponenty Prezentacyjne**: Komponenty w `src/components` są "głupimi" komponentami prezentacyjnymi. Nie wiedzą, skąd pochodzą dane ani co się stanie po kliknięciu przycisku.
+    *   **Przykład: `TaskCard`**: Otrzymuje obiekt `Task` i wyświetla jego tytuł, priorytet itp. Otrzymuje również funkcję `onClick` od swojego rodzica (`app/household/page.tsx`). Kiedy użytkownik kliknie na kartę, `TaskCard` po prostu wywołuje tę funkcję, a strona-rodzic decyduje, co zrobić dalej (np. otworzyć `TaskModal` z danymi tego zadania).
+*   **Kompozycja Modali**: Modale (np. `TaskModal`) same są złożone z mniejszych komponentów. `TaskModal` może zawierać formularz do edycji zadania, ale także przyciski do otwarcia kolejnych modali, takich jak `TaskCommentsModal` czy `TaskHistoryModal`, demonstrując zagnieżdżoną kompozycję i przepływ stanu między powiązanymi, ale oddzielnymi elementami UI.
 
-### 6.2. Dodawanie Nowego Zadania
+Ten podział obowiązków sprawia, że kod jest łatwiejszy do zrozumienia, testowania i utrzymania. Komponenty UI można rozwijać i testować w izolacji (np. za pomocą Storybooka), a logika biznesowa pozostaje odseparowana na poziomie stron i funkcji pomocniczych.
 
-1.  **UI**: Na stronie panelu (`/household`), użytkownik klika przycisk "Dodaj zadanie".
-2.  **Modal**: Otwierany jest modal z komponentu `TaskModal` (`src/components/TaskModal.tsx`). Stan widoczności modala jest zarządzany w komponencie strony (`household/page.tsx`).
-3.  **Wprowadzanie Danych**: Użytkownik wypełnia formularz nowego zadania (tytuł, opis, priorytet, przypisana osoba itp.).
-4.  **Zapis**:
-    *   Po kliknięciu "Zapisz", komponent `TaskModal` wywołuje funkcję (przekazaną przez propsy) do dodania zadania.
-    *   Funkcja ta aktualizuje stan z listą zadań w komponencie nadrzędnym (`household/page.tsx`).
-    *   *Docelowo, będzie tu wysyłane zapytanie POST do API w celu zapisania zadania w bazie danych.*
-5.  **Odświeżenie UI**: Lista zadań na stronie jest automatycznie odświeżana, a nowe zadanie pojawia się na niej. Modal jest zamykany.
+## 6. Szczegółowe Omówienie Kluczowych Funkcjonalności
 
-### 6.3. Wizualizacja Domu 3D
+### 6.1. System Autentykacji (Mock)
 
-Jedną z unikalnych funkcjonalności aplikacji jest dynamiczne generowanie modelu 3D domu.
+1.  **Interfejs**: Użytkownik korzysta z komponentu `LoginForm` na stronie `/login`.
+2.  **Stan Formularza**: Stan pól (email, hasło) jest zarządzany lokalnie w komponencie `LoginForm`.
+3.  **Walidacja (Przyszłościowo)**: Dane będą walidowane przy użyciu schematów Zod z `src/utils/validation.ts`.
+4.  **Logika Logowania**:
+    *   Po submisji formularza, wywoływana jest funkcja `login` z `useAuth()`.
+    *   Funkcja `login` w `AuthContext.tsx` symuluje proces autentykacji:
+        a. Pobiera listę użytkowników z `localStorage`.
+        b. Wyszukuje użytkownika po adresie e-mail.
+        c. Haszuje podane hasło przy użyciu prostej, demonstracyjnej funkcji `simpleHash`.
+        d. Porównuje hashe.
+        e. W przypadku sukcesu, tworzy obiekt `AuthUser` (bez hasła) i zapisuje go w stanie kontekstu oraz w `localStorage`.
+5.  **Przekierowanie**: Komponent `LoginForm` po otrzymaniu pozytywnej odpowiedzi z funkcji `login` przekierowuje użytkownika do panelu `/household`.
 
-1.  **UI**: Użytkownik przechodzi na stronę `/house`.
-2.  **Renderowanie**: Komponent `src/app/house/page.tsx` inicjalizuje scenę `Three.js`.
-3.  **Generowanie Modelu**:
-    *   Na podstawie właściwości domu (pobranych z danych, np. `defaultHouseholds`), funkcja `buildHouse` dynamicznie tworzy obiekty `Three.js` (ściany, dach, okna, drzwi itp.).
-    *   Właściwości takie jak liczba pięter, typ dachu czy obecność garażu wpływają na ostateczny kształt modelu.
-4.  **Interakcja**: Użytkownik może interaktywnie obracać i przybliżać model, aby obejrzeć go z różnych stron. Scena jest oświetlona, a materiały i kolory nadają jej realistyczny wygląd.
+### 6.2. Proceduralne Generowanie Domu 3D
 
-### 6.4. Zarządzanie Profilem Użytkownika
+Strona `/house` oferuje unikalną wizualizację opartą na Three.js.
 
-Strona `/profile` pozwala zalogowanemu użytkownikowi na zarządzanie swoim kontem.
+1.  **Inicjalizacja**: Komponent `HouseVisualizationPage` inicjalizuje scenę Three.js, renderer, kamerę i oświetlenie wewnątrz hooka `useEffect`. Renderer jest dołączany do elementu `div` z `mountRef`.
+2.  **Definicja Właściwości**: Interfejs `HouseProperties` definiuje wszystkie parametry, które mogą opisywać dom (np. `houseWidth`, `roofType`, `hasGarage`).
+3.  **Generowanie Danych**: Po wejściu na stronę, funkcja `generateRandomHouse` tworzy losowy obiekt `HouseProperties`, co zapewnia, że za każdym razem zobaczymy inny budynek.
+4.  **Budowa Modelu (`buildHouse`)**: Jest to serce tej funkcjonalności. Funkcja ta, krok po kroku, tworzy obiekty `THREE.Mesh` i dodaje je do sceny:
+    *   Najpierw czyści scenę z poprzedniego modelu, usuwając obiekty z flagą `userData.isHouse`.
+    *   Następnie, na podstawie obiektu `HouseProperties`, tworzy geometrię (`BoxGeometry`, `ConeGeometry` itp.) i materiały dla każdej części domu: fundamentów, dachu, drzwi, okien, komina, garażu, a nawet otoczenia jak płot czy ogród z kwiatami.
+    *   Każda część jest pozycjonowana relatywnie do innych, co pozwala na spójne i logiczne konstrukcje.
+5.  **Interaktywność**: Użytkownik może obracać i przybliżać scenę dzięki dołączonym kontrolkom (np. `OrbitControls` z Three.js, które prawdopodobnie są zaimplementowane w dalszej części pliku).
 
-1.  **UI**: Po przejściu na stronę `/profile`, wyświetlane są dane użytkownika: imię, e-mail, rola.
-2.  **Edycja**: Użytkownik może włączyć tryb edycji, aby zmienić swoje imię i adres e-mail. Zmiany są zapisywane w `localStorage`.
-3.  **Lista Gospodarstw**: Na stronie wyświetlana jest lista gospodarstw domowych, do których należy użytkownik.
-4.  **Wylogowanie**: Użytkownik ma możliwość wylogowania się z aplikacji.
+## 7. Potencjalne Ulepszenia i Kierunki Rozwoju (Roadmap)
 
-### 6.5. Panel Administratora
+Aplikacja, choć funkcjonalna, ma ogromny potencjał rozwoju. Poniżej znajduje się lista możliwych przyszłych usprawnień, uszeregowana od fundamentalnych zmian po rozbudowę funkcjonalności.
 
-Strona `/admin` jest dostępna dla użytkowników z rolą administratora i służy do zarządzania całą aplikacją.
+*   **Pełna integracja z Backendem**:
+    *   **Krok 1: API & Baza Danych**: Zastąpienie `localStorage` i mockowych danych w `src/data` oraz `src/utils` rzeczywistymi wywołaniami do API (REST lub GraphQL). Stworzenie dedykowanej bazy danych (np. PostgreSQL z Prismą jako ORM) do przechowywania danych `User`, `Household`, `Task` itp.
+    *   **Krok 2: Bezpieczna Autentykacja**: Implementacja pełnoprawnej autentykacji opartej na tokenach (JWT, OAuth) po stronie backendu. Funkcje `login` i `register` w `AuthContext` powinny komunikować się z odpowiednimi endpointami API.
 
-1.  **Dashboard**: Panel wyświetla kluczowe statystyki, takie jak liczba gospodarstw domowych, łączna liczba członków i zadań.
-2.  **Zarządzanie Gospodarstwami**: Administrator może dodawać nowe gospodarstwa domowe, usuwać istniejące oraz zarządzać użytkownikami przypisanymi do każdego z nich.
-3.  **Historia Zadań**: Dostępny jest wgląd w globalną historię wszystkich zadań w systemie.
-4.  **Wyszukiwanie i Filtrowanie**: Administrator może wyszukiwać i sortować gospodarstwa domowe według różnych kryteriów.
+*   **Usprawnienia czasu rzeczywistego**:
+    *   Integracja z WebSockets (np. przez Socket.io lub Ably), aby zmiany (nowe zadania, komentarze, aktualizacje statusu) były natychmiast widoczne dla wszystkich członków gospodarstwa domowego bez potrzeby odświeżania strony. To znacząco poprawi doświadczenie użytkownika.
 
-### 6.6. Profil Członka Gospodarstwa Domowego
+*   **Testowanie**:
+    *   **Testy jednostkowe**: Wprowadzenie testów jednostkowych dla logiki w `utils` (np. walidacja schematów Zod, logika `taskHistory`) przy użyciu bibliotek takich jak Jest/Vitest i React Testing Library.
+    *   **Testy komponentów**: Testowanie komponentów UI w `src/components` w izolacji, sprawdzając ich renderowanie i interakcje.
+    *   **Testy end-to-end (E2E)**: Dodanie testów E2E z użyciem Cypress lub Playwright do weryfikacji kluczowych ścieżek użytkownika (logowanie, dodawanie zadania, zmiana statusu).
 
-Dynamiczna strona `/member/[id]` wyświetla publiczny profil członka gospodarstwa domowego.
+*   **CI/CD (Continuous Integration/Continuous Deployment)**:
+    *   Skonfigurowanie pipeline'u na platformie takiej jak GitHub Actions, który automatycznie uruchamiałby linter (`eslint`), testy i budował aplikację po każdym pushu do głównej gałęzi, zapewniając stałą jakość kodu.
 
-1.  **Informacje o Członku**: Wyświetlane są szczegółowe informacje o członku, takie jak imię, rola, dane kontaktowe i biografia.
-2.  **Przegląd Zadań**: Profil zawiera podsumowanie zadań przypisanych do członka (całkowita liczba, oczekujące, zakończone).
-3.  **Lista Zadań**: Poniżej podsumowania znajduje się pełna lista zadań z ich szczegółami (priorytet, kategoria, termin wykonania).
-4.  **Edycja**: Możliwa jest edycja profilu członka (funkcjonalność dostępna prawdopodobnie dla administratorów lub samego członka).
+*   **Zaawansowane zarządzanie stanem**:
+    *   W miarę wzrostu złożoności aplikacji, `useContext` (szczególnie dla danych innych niż autentykacja) może prowadzić do niepotrzebnych re-renderów. Warto rozważyć migrację do bardziej zaawansowanych bibliotek jak Zustand lub Redux Toolkit, które oferują lepsze narzędzia do debugowania i optymalizacji wydajności.
 
-## 7. Konfiguracja i Uruchomienie
+*   **Rozbudowa funkcjonalności 3D**:
+    *   **Interaktywna edycja**: Umożliwienie użytkownikom edycji właściwości domu (`HouseProperties`) w czasie rzeczywistym za pomocą formularza na stronie `/house`. Zmiana koloru czy dodanie garażu powinno natychmiastowo aktualizować model 3D.
+    *   **Zapisywanie konfiguracji**: Zapisywanie konfiguracji domu w profilu `Household` lub `User` w bazie danych, aby wizualizacja była trwała.
+    *   **Optymalizacja**: Wykorzystanie technik optymalizacyjnych w Three.js, takich jak `instancing` dla powtarzalnych obiektów (drzewa, płot) i zarządzanie pamięcią w celu zapewnienia płynności działania na słabszych urządzeniach.
 
-### 7.1. Wymagania
+*   **Dostępność (Accessibility - a11y)**:
+    *   Przeprowadzenie audytu dostępności i zapewnienie, że aplikacja jest w pełni użyteczna dla osób z niepełnosprawnościami (zgodność z WCAG), np. poprzez poprawne użycie atrybutów ARIA, zarządzanie focusem w modalach i zapewnienie nawigacji klawiaturą.
+
+*   **Internacjonalizacja (i18n)**:
+    *   Dostosowanie aplikacji do obsługi wielu języków przy użyciu biblioteki takiej jak `next-international`, co pozwoliłoby na łatwe tłumaczenie interfejsu.
+
+## 8. Konfiguracja i Uruchomienie
+
+### 8.1. Wymagania
 
 *   Node.js (wersja >= 20)
 *   npm lub yarn
 
-### 7.2. Instalacja Zależności
+### 8.2. Instalacja Zależności
 
 ```bash
 npm install
 ```
 
-### 7.3. Uruchomienie Środowiska Deweloperskiego
+### 8.3. Uruchomienie Środowiska Deweloperskiego
 
 ```bash
 npm run dev
 ```
 
-Aplikacja będzie dostępna pod adresem `http://localhost:3000`. Środowisko deweloperskie oferuje Hot Module Replacement (HMR), co oznacza, że zmiany w kodzie są natychmiast widoczne w przeglądarce bez potrzeby ręcznego odświeżania.
+Aplikacja będzie dostępna pod adresem `http://localhost:3000`. Środowisko deweloperskie oferuje Hot Module Replacement (HMR).
 
-### 7.4. Budowanie Aplikacji Produkcyjnej
+### 8.4. Budowanie Aplikacji Produkcyjnej
 
 ```bash
 npm run build
@@ -179,10 +228,10 @@ npm run build
 
 Polecenie to tworzy zoptymalizowaną wersję aplikacji w katalogu `.next/`.
 
-### 7.5. Uruchomienie Aplikacji Produkcyjnej
+### 8.5. Uruchomienie Aplikacji Produkcyjnej
 
 ```bash
 npm run start
 ```
 
-Polecenie to uruchamia serwer produkcyjny. Aplikacja będzie dostępna pod adresem `http://localhost:3000`. 
+Polecenie to uruchamia serwer produkcyjny. Aplikacja będzie dostępna pod adresem `http://localhost:3000`.
