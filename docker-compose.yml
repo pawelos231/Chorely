@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:13
+    container_name: chorely-db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: chorely
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/2_seed.sql 

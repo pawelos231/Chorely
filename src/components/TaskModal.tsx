@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Task, Member } from '@/types';
-import { categories } from '@/data/defaultMembers';
 import { taskSchema, formatZodErrors } from '@/utils/validation';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
@@ -95,6 +94,16 @@ export default function TaskModal({ members, onAdd, onClose }: TaskModalProps) {
 
   // Get minimum date (today)
   const today = new Date().toISOString().split('T')[0];
+
+  const categories = [
+    'Cleaning',
+    'Cooking',
+    'Shopping',
+    'Maintenance',
+    'Yard Work',
+    'Bills',
+    'Other',
+  ];
 
   return (
     <div 
@@ -205,7 +214,7 @@ export default function TaskModal({ members, onAdd, onClose }: TaskModalProps) {
               } disabled:opacity-50`}
               disabled={isSubmitting}
             >
-              {categories.map(category => (
+              {categories.map((category: string) => (
                 <option key={category} value={category}>{category}</option>
               ))}
             </select>

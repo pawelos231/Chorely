@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Task, Member } from '@/types';
-import { getCommentCount } from '@/utils/comments';
 import TaskCommentsModal from './TaskCommentsModal';
 
 interface TaskCardProps {
@@ -8,33 +7,31 @@ interface TaskCardProps {
   member: Member | undefined;
   onToggle: (taskId: string) => void;
   onDelete: (taskId: string) => void;
+  commentCount: number;
 }
 
-export default function TaskCard({ task, member, onToggle, onDelete }: TaskCardProps) {
+export default function TaskCard({ task, member, onToggle, onDelete, commentCount }: TaskCardProps) {
   const [showComments, setShowComments] = useState(false);
-  const [commentCount, setCommentCount] = useState(0);
-
-  useEffect(() => {
-    setCommentCount(getCommentCount(task.id));
-  }, [task.id]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'border-l-red-500';
-      case 'medium': return 'border-l-yellow-500';
-      case 'low': return 'border-l-green-500';
-      default: return 'border-l-gray-500';
+      case 'high':
+        return 'border-l-red-500';
+      case 'medium':
+        return 'border-l-yellow-500';
+      case 'low':
+        return 'border-l-green-500';
+      default:
+        return 'border-l-gray-500';
     }
-  };
-
-  const refreshCommentCount = () => {
-    setCommentCount(getCommentCount(task.id));
   };
 
   return (
     <>
       <div
-        className={`bg-gray-800 rounded-lg p-4 border-l-4 ${getPriorityColor(task.priority)} border-t border-r border-b border-gray-700 ${
+        className={`bg-gray-800 rounded-lg p-4 border-l-4 ${getPriorityColor(
+          task.priority
+        )} border-t border-r border-b border-gray-700 ${
           task.completed ? 'opacity-75' : ''
         }`}
       >
@@ -71,7 +68,7 @@ export default function TaskCard({ task, member, onToggle, onDelete }: TaskCardP
           <div className="flex items-center gap-2">
             {member && (
               <>
-                <div className={`w-6 h-6 rounded-full ${member.color}`}></div>
+                <div className={`w-6 h-6 rounded-full bg-blue-500`}></div>
                 <span className="text-sm text-gray-300">{member.name}</span>
               </>
             )}
@@ -116,7 +113,6 @@ export default function TaskCard({ task, member, onToggle, onDelete }: TaskCardP
           task={task}
           onClose={() => {
             setShowComments(false);
-            refreshCommentCount();
           }}
         />
       )}

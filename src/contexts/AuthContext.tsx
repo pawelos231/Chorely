@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AuthUser, User, LoginCredentials, RegisterData } from '@/types';
+import { AuthUser, LoginCredentials, RegisterData } from '@/types';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -13,28 +13,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Simple hash function for demo purposes (in real app use proper hashing)
-const simpleHash = (password: string): string => {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return hash.toString();
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load user from localStorage on app start
   useEffect(() => {
     const savedUser = localStorage.getItem('chorely-auth-user');
     if (savedUser) {
       try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
+        const parsedUser: AuthUser = JSON.parse(savedUser);
+        
+        // Defensive check for old data structure.
+        // If `households` is an array of strings, the data is stale.
+        if (Array.isArray(parsedUser.households) && parsedUser.households.length > 0 && typeof parsedUser.households[0] === 'string') {
+          console.warn('Stale user session data found. Clearing session.');
+          localStorage.removeItem('chorely-auth-user');
+          setUser(null);
+        } else {
+          // Here you might want to add a check to verify the user session with the backend
+          setUser(parsedUser);
+        }
       } catch (error) {
         console.error('Error parsing saved user:', error);
         localStorage.removeItem('chorely-auth-user');
@@ -45,31 +43,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (credentials: LoginCredentials): Promise<boolean> => {
     try {
-      // Get users from localStorage
-      const savedUsers = localStorage.getItem('chorely-users');
-      const users: User[] = savedUsers ? JSON.parse(savedUsers) : [];
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
 
-      // Find user by email
-      const foundUser = users.find(u => u.email === credentials.email);
+      if (!response.ok) {
+        return false;
+      }
+
+      const userData = await response.json();
       
-      if (!foundUser) {
-        return false;
+      // Fetch household info
+      const householdsResponse = await fetch(`/api/user/${userData.id}/households`);
+      if (!householdsResponse.ok) {
+        // Handle case where fetching households fails
+        console.error('Failed to fetch user households');
+        // Depending on the app's requirements, you might want to log the user out
+        // or let them proceed without household info. For now, we'll proceed.
       }
+      const households = householdsResponse.ok ? await householdsResponse.json() : [];
 
-      // Check password (simple hash comparison)
-      const hashedPassword = simpleHash(credentials.password);
-      if (foundUser.password_hash !== hashedPassword) {
-        return false;
-      }
-
-      // Create auth user (without password)
-      const authUser: AuthUser = {
-        id: foundUser.id,
-        name: foundUser.name,
-        email: foundUser.email,
-        role: foundUser.role,
-        households: foundUser.households,
-      };
+      // All users are now considered admins.
+      const authUser: AuthUser = { ...userData, households, role: 'admin' };
 
       setUser(authUser);
       localStorage.setItem('chorely-auth-user', JSON.stringify(authUser));
@@ -82,42 +79,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (data: RegisterData): Promise<boolean> => {
     try {
-      // Get existing users
-      const savedUsers = localStorage.getItem('chorely-users');
-      const users: User[] = savedUsers ? JSON.parse(savedUsers) : [];
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
 
-      // Check if email already exists
-      if (users.some(u => u.email === data.email)) {
+      if (!response.ok) {
+        // Handle registration failure (e.g., email already exists)
         return false;
       }
 
-      // Create new user
-      const newUser: User = {
-        id: Date.now().toString(),
-        name: data.name,
-        email: data.email,
-        password_hash: simpleHash(data.password),
-        created_at: new Date().toISOString(),
-        role: 'user',
-        households: [], // New users start with no households
-      };
+      // Automatically log in the user after successful registration
+      return await login({ email: data.email, password: data.password });
 
-      // Save user
-      const updatedUsers = [...users, newUser];
-      localStorage.setItem('chorely-users', JSON.stringify(updatedUsers));
-
-      // Auto-login after registration
-      const authUser: AuthUser = {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-        households: newUser.households,
-      };
-
-      setUser(authUser);
-      localStorage.setItem('chorely-auth-user', JSON.stringify(authUser));
-      return true;
     } catch (error) {
       console.error('Registration error:', error);
       return false;
@@ -127,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('chorely-auth-user');
+    // Optionally, you could also call a backend endpoint to invalidate the session/token
   };
 
   return (

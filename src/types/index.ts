@@ -8,6 +8,7 @@ export interface Task {
   completed: boolean;
   dueDate: string;
   createdAt: string;
+  comments?: Comment[];
 }
 
 export interface Member {
@@ -26,9 +27,9 @@ export interface Member {
 export interface Household {
   id: string;
   name: string;
-  numberOfRooms: number;
-  houseSize: number; // in square meters
-  numberOfFloors: number;
+  numberOfRooms?: number;
+  houseSize?: number; // in square meters
+  numberOfFloors?: number;
   address?: string;
   houseType?: 'apartment' | 'house' | 'studio' | 'villa' | 'other';
   hasGarden?: boolean;
@@ -47,7 +48,7 @@ export interface User {
   email: string;
   password_hash: string;
   role: 'admin' | 'user';
-  households: string[]; // Array of household IDs user has access to
+  households: Household[]; // Array of household objects
   created_at: string;
 }
 
@@ -56,7 +57,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: 'admin' | 'user';
-  households: string[];
+  households: Household[];
 }
 
 export interface LoginCredentials {

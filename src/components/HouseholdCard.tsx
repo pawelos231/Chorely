@@ -18,6 +18,16 @@ export default function HouseholdCard({
   showDelete = false, 
   showManageUsers = false 
 }: HouseholdCardProps) {
+  // Safely access tasks and members, default to an empty array if undefined
+  const tasks = household.tasks || [];
+  const members = household.members || [];
+  
+  // Calculate stats
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(task => task.completed).length;
+  const pendingTasks = totalTasks - completedTasks;
+  const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
   const handleDelete = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -48,10 +58,6 @@ export default function HouseholdCard({
     }
   };
 
-  const completedTasks = household.tasks.filter(task => task.completed).length;
-  const totalTasks = household.tasks.length;
-  const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
   return (
     <Link href={`/household/${household.id}`} className="block" onClick={handleCardClick}>
       <div className="bg-gray-800 rounded-xl border border-gray-700 hover:border-gray-600 transition-all duration-200 hover:shadow-lg hover:shadow-gray-900/50 group cursor-pointer">
@@ -65,7 +71,7 @@ export default function HouseholdCard({
                   {household.name}
                 </h3>
                 <p className="text-gray-400 text-sm">
-                  {household.houseType ? household.houseType.charAt(0).toUpperCase() + household.houseType.slice(1) : 'House'}
+                  {members.length} Members • {totalTasks} Tasks
                 </p>
               </div>
             </div>
@@ -104,18 +110,18 @@ export default function HouseholdCard({
 
         {/* Stats */}
         <div className="p-6">
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-400">{household.numberOfRooms}</div>
-              <div className="text-xs text-gray-400">Rooms</div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="font-bold text-lg">{totalTasks}</div>
+              <div className="text-sm text-gray-400">Total Tasks</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-400">{household.houseSize}m²</div>
-              <div className="text-xs text-gray-400">Size</div>
+            <div>
+              <div className="font-bold text-lg text-green-400">{completedTasks}</div>
+              <div className="text-sm text-gray-400">Completed</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-400">{household.numberOfFloors}</div>
-              <div className="text-xs text-gray-400">Floors</div>
+            <div>
+              <div className="font-bold text-lg text-yellow-400">{pendingTasks}</div>
+              <div className="text-sm text-gray-400">Pending</div>
             </div>
           </div>
 
@@ -148,7 +154,7 @@ export default function HouseholdCard({
           {/* Members & Tasks */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="bg-gray-700/50 rounded-lg p-3">
-              <div className="text-lg font-bold text-orange-400">{household.members.length}</div>
+              <div className="text-lg font-bold text-orange-400">{members.length}</div>
               <div className="text-xs text-gray-400">Members</div>
             </div>
             <div className="bg-gray-700/50 rounded-lg p-3">
@@ -167,7 +173,7 @@ export default function HouseholdCard({
               <div className="w-full bg-gray-700 rounded-full h-2">
                 <div
                   className="bg-gradient-to-r from-green-600 to-green-400 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progressPercentage}%` }}
+                  style={{ width: `${completionPercentage}%` }}
                 />
               </div>
             </div>

@@ -1,9 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Comment, User, Task } from '@/types';
+import { Task } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { addComment, getCommentsForTask, deleteComment, updateComment } from '@/utils/comments';
+import toast from 'react-hot-toast';
+
+// Extended Comment type to include user info from the API
+interface ApiComment {
+  id: string;
+  task_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  user_name: string;
+  user_avatar: string | null;
+}
 
 interface TaskCommentsModalProps {
   task: Task;
@@ -12,61 +23,89 @@ interface TaskCommentsModalProps {
 
 export default function TaskCommentsModal({ task, onClose }: TaskCommentsModalProps) {
   const { user } = useAuth();
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [comments, setComments] = useState<ApiComment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
+    loadComments();
   }, [task.id]);
 
-  const loadData = () => {
+  const loadComments = async () => {
     setIsLoading(true);
-    
-    // Load users
-    const savedUsers = localStorage.getItem('chorely-users');
-    const usersData: User[] = savedUsers ? JSON.parse(savedUsers) : [];
-    setUsers(usersData);
-    
-    // Load comments for this task
-    const taskComments = getCommentsForTask(task.id);
-    setComments(taskComments);
-    
-    setIsLoading(false);
-  };
-
-  const getUserById = (id: string) => users.find(u => u.id === id);
-
-  const handleAddComment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !newComment.trim()) return;
-
-    const comment = addComment(task.id, user.id, newComment);
-    setComments([...comments, comment]);
-    setNewComment('');
-  };
-
-  const handleDeleteComment = (commentId: string) => {
-    if (deleteComment(commentId)) {
-      setComments(comments.filter(c => c.id !== commentId));
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/comments`);
+      if (!response.ok) throw new Error('Failed to fetch comments');
+      const data = await response.json();
+      setComments(data);
+    } catch (error) {
+      toast.error('Could not load comments.');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleEditComment = (comment: Comment) => {
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newComment.trim()) return;
+
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, content: newComment.trim() }),
+      });
+      if (!response.ok) throw new Error('Failed to add comment');
+      const addedComment = await response.json();
+      setComments([...comments, addedComment]);
+      setNewComment('');
+      toast.success('Comment added!');
+    } catch (error) {
+      toast.error('Failed to add comment.');
+      console.error(error);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm('Are you sure you want to delete this comment?')) return;
+
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/comments/${commentId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete comment');
+      setComments(comments.filter(c => c.id !== commentId));
+      toast.success('Comment deleted.');
+    } catch (error) {
+      toast.error('Failed to delete comment.');
+      console.error(error);
+    }
+  };
+
+  const handleEditComment = (comment: ApiComment) => {
     setEditingComment(comment.id);
     setEditContent(comment.content);
   };
 
-  const handleSaveEdit = (commentId: string) => {
-    if (updateComment(commentId, editContent)) {
-      setComments(comments.map(c => 
-        c.id === commentId ? { ...c, content: editContent.trim() } : c
-      ));
+  const handleSaveEdit = async (commentId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/comments/${commentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent.trim() }),
+      });
+      if (!response.ok) throw new Error('Failed to update comment');
+      const updatedComment = await response.json();
+      setComments(comments.map(c => (c.id === commentId ? { ...c, content: updatedComment.content } : c)));
       setEditingComment(null);
       setEditContent('');
+      toast.success('Comment updated!');
+    } catch (error) {
+      toast.error('Failed to update comment.');
+      console.error(error);
     }
   };
 
@@ -75,7 +114,7 @@ export default function TaskCommentsModal({ task, onClose }: TaskCommentsModalPr
     setEditContent('');
   };
 
-  const canEditComment = (comment: Comment) => {
+  const canEditComment = (comment: ApiComment) => {
     return user && (user.id === comment.user_id || user.role === 'admin');
   };
 
@@ -122,26 +161,24 @@ export default function TaskCommentsModal({ task, onClose }: TaskCommentsModalPr
           {comments.length > 0 ? (
             <div className="space-y-4">
               {comments.map(comment => {
-                const commentUser = getUserById(comment.user_id);
                 const isEditing = editingComment === comment.id;
                 
                 return (
                   <div key={comment.id} className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-                          <span className="text-xs font-bold text-white">
-                            {commentUser?.name.charAt(0).toUpperCase() || '?'}
-                          </span>
-                        </div>
+                        {comment.user_avatar ? (
+                          <img src={comment.user_avatar} alt={comment.user_name} className="w-8 h-8 rounded-full" />
+                        ) : (
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-bold text-white">
+                              {comment.user_name.charAt(0).toUpperCase() || '?'}
+                            </span>
+                          </div>
+                        )}
                         <div>
                           <p className="text-gray-100 font-medium text-sm">
-                            {commentUser?.name || 'Unknown User'}
-                            {commentUser?.role === 'admin' && (
-                              <span className="ml-2 text-xs bg-red-600/20 text-red-400 px-2 py-1 rounded">
-                                Admin
-                              </span>
-                            )}
+                            {comment.user_name || 'Unknown User'}
                           </p>
                           <p className="text-gray-400 text-xs">
                             {new Date(comment.created_at).toLocaleString()}
@@ -240,13 +277,6 @@ export default function TaskCommentsModal({ task, onClose }: TaskCommentsModalPr
             </div>
           </form>
         )}
-
-        {/* Stats */}
-        <div className="mt-4 pt-4 border-t border-gray-700 text-center">
-          <p className="text-gray-400 text-sm">
-            {comments.length} comment{comments.length !== 1 ? 's' : ''}
-          </p>
-        </div>
       </div>
     </div>
   );

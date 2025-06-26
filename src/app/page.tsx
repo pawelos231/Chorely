@@ -1,12 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Household } from '@/types';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { defaultUsers } from '@/data/defaultUsers';
-import { defaultHouseholds } from '@/data/defaultHouseholds';
-import { defaultTaskHistory } from '@/data/defaultTaskHistory';
-import { defaultComments } from '@/data/defaultComments';
 import LoginForm from '@/components/LoginForm';
 import RegisterForm from '@/components/RegisterForm';
 import HouseholdCard from '@/components/HouseholdCard';
@@ -15,53 +10,12 @@ import Link from 'next/link';
 export default function Home() {
   const { user, logout, isLoading } = useAuth();
   const [showLogin, setShowLogin] = useState(true);
-  const [households, setHouseholds] = useState<Household[]>([]);
 
-  // Initialize default data
-  useEffect(() => {
-    // Initialize users if not exists
-    const savedUsers = localStorage.getItem('chorely-users');
-    if (!savedUsers) {
-      localStorage.setItem('chorely-users', JSON.stringify(defaultUsers));
-    }
-
-    // Initialize households if not exists
-    const savedHouseholds = localStorage.getItem('chorely-households');
-    if (savedHouseholds) {
-      setHouseholds(JSON.parse(savedHouseholds));
-    } else {
-      setHouseholds(defaultHouseholds);
-      localStorage.setItem('chorely-households', JSON.stringify(defaultHouseholds));
-    }
-
-    // Initialize task history if not exists
-    const savedTaskHistory = localStorage.getItem('chorely-task-history');
-    if (!savedTaskHistory) {
-      localStorage.setItem('chorely-task-history', JSON.stringify(defaultTaskHistory));
-    }
-
-    // Initialize comments if not exists
-    const savedComments = localStorage.getItem('chorely-comments');
-    if (!savedComments) {
-      localStorage.setItem('chorely-comments', JSON.stringify(defaultComments));
-    }
-  }, []);
-
-  // Get user's households
-  const userHouseholds = user ? households.filter(household => {
-    // Check if user has access to this household by ID
-    if (user.households.includes(household.id)) {
-      return true;
-    }
-    
-    // Also check if user is a member by email
-    return household.members.some(member => 
-      member.email && member.email.toLowerCase() === user.email.toLowerCase()
-    );
-  }) : [];
+  // Get user's households from the Auth context
+  const userHouseholds = user?.households || [];
 
   // Calculate user statistics
-  const allUserTasks = userHouseholds.flatMap(h => h.tasks);
+  const allUserTasks = userHouseholds.flatMap(h => h.tasks || []);
   const completedTasks = allUserTasks.filter(t => t.completed);
   const pendingTasks = allUserTasks.filter(t => !t.completed);
 
@@ -78,6 +32,7 @@ export default function Home() {
 
   // Show auth forms for non-logged users
   if (!user) {
+
     return (
       <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -101,6 +56,8 @@ export default function Home() {
   }
 
   // User Dashboard
+      console.log('User households:', userHouseholds);
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -114,14 +71,12 @@ export default function Home() {
               <p className="text-gray-400">Welcome back, {user.name}!</p>
             </div>
             <div className="flex gap-4">
-              {user.role === 'admin' && (
-                <Link
-                  href="/admin"
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Admin Panel
-                </Link>
-              )}
+              <Link
+                href="/admin"
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Admin Panel
+              </Link>
               <Link
                 href="/profile"
                 className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
